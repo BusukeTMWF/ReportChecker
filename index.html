@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>理系レポート体裁チェッカー</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; background: #f9f9f9; }
+        .box { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; cursor: pointer; border-radius: 4px; }
+        .btn { display: block; width: 100%; background: #0070f3; color: white; border: none; padding: 12px; margin-top: 15px; border-radius: 4px; font-size: 16px; cursor: pointer; }
+        .result { margin-top: 20px; padding: 15px; border-radius: 4px; display: none; }
+        .error { background: #fee2e2; color: #991b1b; border-left: 4px solid #dc2626; padding: 10px; margin-bottom: 10px; }
+        .success { background: #dcfce7; color: #166534; border-left: 4px solid #16a34a; padding: 10px; margin-bottom: 10px; }
+        .info { background: #e0f2fe; color: #075985; border-left: 4px solid #0284c7; padding: 10px; margin-bottom: 10px; }
+        footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2>📄 理系レポート体裁チェッカー</h2>
+    <p style="font-size: 14px; color: #555;">PDFをアップロードするだけで、提出前の必須体裁を一瞬でチェックします（サーバーにデータは保存されません）。</p>
+    
+    <form id="uploadForm">
+        <div class="upload-area">
+            <input type="file" id="reportFile" accept=".pdf" required>
+        </div>
+        <button type="submit" class="btn">チェックする</button>
+    </form>
+
+    <div id="resultContainer" class="result">
+        <h3>🔍 校閲チェック結果</h3>
+        <div id="puncResult"></div>
+        <div id="figResult"></div>
+    </div>
+</div>
+
+<footer>
+    【PR】レポートの書き方に迷ったら：<a href="#" target="_blank">『理系のためのレポート作成術』（Amazon）</a>
+</footer>
+
+<script>
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fileInput = document.getElementById('reportFile');
+        if (!fileInput.files[0]) return;
+
+        const formData = new FormData();
+        formData.append('report', fileInput.files[0]);
+
+        // 結果画面をリセットして表示
+        const resultContainer = document.getElementById('resultContainer');
+        resultContainer.style.display = 'block';
+        document.getElementById('puncResult').innerHTML = '解析中...';
+        document.getElementById('figResult').innerHTML = '';
+
+        try {
+            const response = await fetch('/check', { method: 'POST', body: formData });
+            const data = await response.json();
+
+            if (data.error) {
+                document.getElementById('puncResult').innerHTML = `<div class="error">${data.error}</div>`;
+                return;
+            }
+
+            // 結果の描画
+            document.getElementById('puncResult').innerHTML = `<div class="${data.puncResult.status}">${data.puncResult.message}</div>`;
+            document.getElementById('figResult').innerHTML = `<div class="${data.figResult.status}">${data.figResult.message}</div>`;
+
+        } catch (error) {
+            document.getElementById('puncResult').innerHTML = `<div class="error">通信エラーが発生しました。</div>`;
+        }
+    });
+</script>
+</body>
+</html>
