@@ -31,9 +31,10 @@
 
     <div id="resultContainer" class="result">
         <h3>🔍 校閲チェック結果</h3>
-        <div id="pageResult"></div> 
-        <div id="figResult"></div>
+        <div id="puncResult"></div>
+        <div id="pageResult"></div>
         <div id="tableResult"></div>
+        <div id="figResult"></div>
     </div>
 </div>
 
@@ -44,8 +45,6 @@
 <script>
     document.getElementById('uploadForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        document.getElementById('pageResult').innerHTML = `<div class="${data.pageResult.status}">${data.pageResult.message}</div>`;
-        document.getElementById('tableResult').innerHTML = `<div class="${data.tableResult.status}">${data.tableResult.message}</div>`;
         const fileInput = document.getElementById('reportFile');
         if (!fileInput.files[0]) return;
 
@@ -55,23 +54,34 @@
         // 結果画面をリセットして表示
         const resultContainer = document.getElementById('resultContainer');
         resultContainer.style.display = 'block';
+        
+        // 判定待ちの間は一旦リセット
         document.getElementById('puncResult').innerHTML = '解析中...';
+        document.getElementById('pageResult').innerHTML = '';
+        document.getElementById('tableResult').innerHTML = '';
         document.getElementById('figResult').innerHTML = '';
 
         try {
+            // バックエンドにPDFを送信
             const response = await fetch('/check', { method: 'POST', body: formData });
-            const data = await response.json();
+            
+            // ここで変数 data が定義される
+            const data = await response.json(); 
 
+            // サーバーからエラーが返ってきた場合
             if (data.error) {
                 document.getElementById('puncResult').innerHTML = `<div class="error">${data.error}</div>`;
                 return;
             }
 
-            // 結果の描画
+            // --- 正常な結果の描画（この行は必ず try の中に書く） ---
             document.getElementById('puncResult').innerHTML = `<div class="${data.puncResult.status}">${data.puncResult.message}</div>`;
+            document.getElementById('pageResult').innerHTML = `<div class="${data.pageResult.status}">${data.pageResult.message}</div>`;
+            document.getElementById('tableResult').innerHTML = `<div class="${data.tableResult.status}">${data.tableResult.message}</div>`;
             document.getElementById('figResult').innerHTML = `<div class="${data.figResult.status}">${data.figResult.message}</div>`;
 
         } catch (error) {
+            // 通信そのものが失敗した場合
             document.getElementById('puncResult').innerHTML = `<div class="error">通信エラーが発生しました。</div>`;
         }
     });
