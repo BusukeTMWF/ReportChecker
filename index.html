@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>理系レポート体裁チェッカー</title>
+    <title>理工学基礎実験レポート体裁チェッカー</title>
     <style>
-        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; background: #f9f9f9; }
+        body { font-family: sans-serif; max-width: 650px; margin: 40px auto; padding: 20px; line-height: 1.6; background: #f9f9f9; }
         .box { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; cursor: pointer; border-radius: 4px; }
         .btn { display: block; width: 100%; background: #0070f3; color: white; border: none; padding: 12px; margin-top: 15px; border-radius: 4px; font-size: 16px; cursor: pointer; }
@@ -14,10 +14,16 @@
         .success { background: #dcfce7; color: #166534; border-left: 4px solid #16a34a; padding: 10px; margin-bottom: 10px; }
         .info { background: #e0f2fe; color: #075985; border-left: 4px solid #0284c7; padding: 10px; margin-bottom: 10px; }
         
-        /* --- 広告用のスタイルを追加 --- */
+        /* --- 特定箇所表示のための新しいスタイル --- */
+        .issue-card { background: #fff; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; padding: 12px; margin-bottom: 12px; border-radius: 4px; font-size: 14px; }
+        .issue-type { font-weight: bold; color: #d97706; font-size: 12px; text-transform: uppercase; }
+        .issue-context { background: #f8fafc; padding: 6px 10px; border-radius: 4px; font-family: monospace; margin: 6px 0; color: #334155; }
+        .issue-context mark { background: #fef08a; padding: 2px 4px; border-radius: 2px; font-weight: bold; }
+        .issue-advice { color: #475569; font-size: 13px; }
+        /* 句読点のエラーカードを少し目立たせる（任意） */
+        .issue-card { border-left: 4px solid #f59e0b; } /* 既存 */
+
         .ad-space { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 15px; text-align: center; border-radius: 4px; margin-top: 20px; color: #64748b; font-size: 12px; }
-        .ad-space img { max-width: 100%; height: auto; border-radius: 4px; }
-        
         footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
     </style>
 </head>
@@ -34,20 +40,20 @@
         <button type="submit" class="btn">チェックする</button>
     </form>
 
-<div class="ad-space" id="ad-bottom">
-            <p style="margin-bottom: 8px;">【PR】レポートや課題で躓いていませんか？</p>
-            
-            <a href="https://amzn.to/42XNerV" target="_blank">
-                機械系の材料力学
-            </a>
-</div>
+    <div class="ad-space" id="ad-top">
+        <p>スポンサーリンク</p>
+        <div>[ 広告表示エリア ]</div>
+    </div>
 
     <div id="resultContainer" class="result">
-        <h3>🔍 校閲チェック結果</h3>
+        <h3>🔍 基本体裁チェック</h3>
         <div id="puncResult"></div>
         <div id="pageResult"></div>
         <div id="tableResult"></div>
         <div id="figResult"></div>
+
+        <h3 style="margin-top: 25px;">📌 要修正・確認箇所の一覧</h3>
+        <div id="detailResults"></div>
 
         <div class="ad-space" id="ad-bottom">
             <p style="margin-bottom: 8px;">【PR】レポートや課題で躓いていませんか？</p>
@@ -78,6 +84,7 @@
         document.getElementById('pageResult').innerHTML = '';
         document.getElementById('tableResult').innerHTML = '';
         document.getElementById('figResult').innerHTML = '';
+        document.getElementById('detailResults').innerHTML = ''; // リセット
 
         try {
             const response = await fetch('/check', { method: 'POST', body: formData });
@@ -88,10 +95,31 @@
                 return;
             }
 
+            // 基本体裁の描画
             document.getElementById('puncResult').innerHTML = `<div class="${data.puncResult.status}">${data.puncResult.message}</div>`;
             document.getElementById('pageResult').innerHTML = `<div class="${data.pageResult.status}">${data.pageResult.message}</div>`;
             document.getElementById('tableResult').innerHTML = `<div class="${data.tableResult.status}">${data.tableResult.message}</div>`;
             document.getElementById('figResult').innerHTML = `<div class="${data.figResult.status}">${data.figResult.message}</div>`;
+
+            // 詳細なエラー箇所の描画ロジック
+            const detailContainer = document.getElementById('detailResults');
+            if (data.unitErrors && data.unitErrors.length > 0) {
+                data.unitErrors.forEach(err => {
+                    // 前後の文章の中で、引っかかった単語をハイライト（<mark>）する
+                    const highlightedContext = err.context.replace(err.found, `<mark>${err.found}</mark>`);
+                    
+                    const card = document.createElement('div');
+                    card.className = 'issue-card';
+                    card.innerHTML = `
+                        <div class="issue-type">[${err.type}]</div>
+                        <div class="issue-context">${highlightedContext}</div>
+                        <div class="issue-advice">💡 <b>アドバイス:</b> ${err.advice}</div>
+                    `;
+                    detailContainer.appendChild(card);
+                });
+            } else {
+                detailContainer.innerHTML = '<div class="success">✅ 単位のミスやスペース漏れ、不適切な文章表現は見つかりませんでした！</div>';
+            }
 
         } catch (error) {
             document.getElementById('puncResult').innerHTML = `<div class="error">通信エラーが発生しました。</div>`;
