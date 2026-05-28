@@ -31,8 +31,9 @@
 
     <div id="resultContainer" class="result">
         <h3>🔍 校閲チェック結果</h3>
-        <div id="puncResult"></div>
+        <div id="pageResult"></div> 
         <div id="figResult"></div>
+        <div id="tableResult"></div>
     </div>
 </div>
 
@@ -43,6 +44,8 @@
 <script>
     document.getElementById('uploadForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+        document.getElementById('pageResult').innerHTML = `<div class="${data.pageResult.status}">${data.pageResult.message}</div>`;
+        document.getElementById('tableResult').innerHTML = `<div class="${data.tableResult.status}">${data.tableResult.message}</div>`;
         const fileInput = document.getElementById('reportFile');
         if (!fileInput.files[0]) return;
 
