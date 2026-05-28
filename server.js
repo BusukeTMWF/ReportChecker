@@ -110,41 +110,114 @@ app.post('/check', upload.single('report'), (req, res) => {
             ? { status: 'success', message: '✅ ページ番号（p.X/Y）の指定書式が確認できました。' }
             : { status: 'error', message: '❌ 「p.現在のページ/総ページ数」形式のページ番号が見つかりません。レポート用紙の下部に記載してください。' };
 
-        // --- 5. 単位チェック（大文字小文字のミス） ---
-        const unitMistakeRegex = /(\d+)\s*(Kg|秒|分|時間)/g;
-        let matchUnit;
-        while ((matchUnit = unitMistakeRegex.exec(text)) !== null) {
-            const start = Math.max(0, matchUnit.index - 15);
-            const end = Math.min(text.length, matchUnit.index + matchUnit[0].length + 15);
+        // ==========================================
+        // ★資料「配布⑦」に基づく単位・変数チェックの強化
+        // ==========================================
+
+        // ① 数字の後に単位が来るときの【括弧の有無】と【スペース】（資料項目2, 4より）
+        // 【誤】 10(N), 10 (N), 10[N] など、数字の後に括弧で単位をくくるミスを検出
+        const unitBracketRegex = /(\d+)\s*[\(\[\{（](([a-zA-Z・]+)|℃|％|%)[\)\]\}）]/g;
+        let matchBracket;
+        while ((matchBracket = unitBracketRegex.exec(text)) !== null) {
+            const start = Math.max(0, matchBracket.index - 15);
+            const end = Math.min(text.length, matchBracket.index + matchBracket[0].length + 15);
             const context = "..." + text.substring(start, end).replace(/\n/g, " ") + "...";
-            
-            let advice = "";
-            if (matchUnit[2] === 'Kg') advice = "キログラムは小文字の「kg」です。大文字のKは絶対温度（ケルビン）になります。";
-            if (matchUnit[2] === '秒') advice = "時間は国際単位系（SI単位）の「s」で表記してください。";
-            if (matchUnit[2] === '分') advice = "時間は「min」で表記してください。";
-            if (matchUnit[2] === '時間') advice = "時間は「h」で表記してください。";
 
             unitErrors.push({
-                type: '表記ミス',
-                found: matchUnit[0],
+                type: '単位の括弧ミス',
+                found: matchBracket[0],
                 context: context,
-                advice: advice
+                advice: `数字の後の単位には括弧をつけません。半角スペースを空けて「${matchBracket[1]} ${matchBracket[2]}」のように記載してください。(配布⑦ 項目2)`
             });
         }
 
-        // --- 6. 数字と単位の間のスペース漏れ ---
-        const spaceMissingRegex = /(\d+)(mm|cm|m|kg|Hz|Pa|V|A|℃)/g;
-        let matchSpace;
-        while ((matchSpace = spaceMissingRegex.exec(text)) !== null) {
-            const start = Math.max(0, matchSpace.index - 15);
-            const end = Math.min(text.length, matchSpace.index + matchSpace[0].length + 15);
+        // ② 角度(°)・温度(℃)・パーセンテージ(%)のスペースルール（資料項目4より）
+        // 【誤】 360 ° (スペースあり) -> 角度はスペースなしが正解
+        const angleSpaceRegex = /(\d+)\s+°/g;
+        let matchAngle;
+        while ((matchAngle = angleSpaceRegex.exec(text)) !== null) {
+            const start = Math.max(0, matchAngle.index - 15);
+            const end = Math.min(text.length, matchAngle.index + matchAngle[0].length + 15);
+            const context = "..." + text.substring(start, end).replace(/\n/g, " ") + "...";
+
+            unitErrors.push({
+                type: '角度の表記ミス',
+                found: matchAngle[0],
+                context: context,
+                advice: `角度（°）の直前にはスペースを入れません。「${matchAngle[1]}°」としてください。(配布⑦ 項目4)`
+            });
+        }
+
+        // 【誤】 15℃, 100% (スペースなし) -> 温度と%は半角スペースありが正解
+        const specialUnitMissingSpaceRegex = /(\d+)(℃|%|％)/g;
+        let matchSpecSpace;
+        while ((matchSpecSpace = specialUnitMissingSpaceRegex.exec(text)) !== null) {
+            const start = Math.max(0, matchSpecSpace.index - 15);
+            const end = Math.min(text.length, matchSpecSpace.index + matchSpecSpace[0].length + 15);
             const context = "..." + text.substring(start, end).replace(/\n/g, " ") + "...";
 
             unitErrors.push({
                 type: 'スペース漏れ',
-                found: matchSpace[0],
+                found: matchSpecSpace[0],
                 context: context,
-                advice: `数字「${matchSpace[1]}」と単位「${matchSpace[2]}」の間に半角スペースが必要です。（例: ${matchSpace[1]} ${matchSpace[2]}）`
+                advice: `温度（℃）やパーセンテージ（%）の直前には半角スペースが必要です。「${matchSpecSpace[1]} ${matchSpecSpace[2]}」としてください。(配布⑦ 項目4)`
+            });
+        }
+
+        // ③ 単位における割り算の複数スラッシュ（資料項目3より）
+        // 【誤】 J/K/kg (スラッシュが2回以上連続)
+        const doubleSlashRegex = /[a-zA-Z]+\/[a-zA-Z]+\/[a-zA-Z]+/g;
+        let matchSlash;
+        while ((matchSlash = doubleSlashRegex.exec(text)) !== null) {
+            const start = Math.max(0, matchSlash.index - 15);
+            const end = Math.min(text.length, matchSlash.index + matchSlash[0].length + 15);
+            const context = "..." + text.substring(start, end).replace(/\n/g, " ") + "...";
+
+            unitErrors.push({
+                type: '単位の除算ミス',
+                found: matchSlash[0],
+                context: context,
+                advice: `単位の割り算で分母が複数ある場合は、括弧でくくるか指数表記にしてください。例:「J/(K kg)」または「J・K⁻¹・kg⁻¹」(配布⑦ 項目3)`
+            });
+        }
+
+        // ④ 通常の単位のスペース漏れ（既存の修正・拡張）
+        // 【誤】 10mm, 5N, 2m (数字とアルファベット単位の間にスペースがない)
+        // ※ ただし、上で検知した℃や%や°は除外する
+        const regularSpaceMissingRegex = /(\d+)(mm|cm|m|kg|g|N|W|Hz|Pa|V|A|J|kg|s)(?![a-zA-Z°℃%％])/g;
+        let matchRegSpace;
+        while ((matchRegSpace = regularSpaceMissingRegex.exec(text)) !== null) {
+            const start = Math.max(0, matchRegSpace.index - 15);
+            const end = Math.min(text.length, matchRegSpace.index + matchRegSpace[0].length + 15);
+            const context = "..." + text.substring(start, end).replace(/\n/g, " ") + "...";
+
+            unitErrors.push({
+                type: 'スペース漏れ',
+                found: matchRegSpace[0],
+                context: context,
+                advice: `数値の後にスペースを入れてください。正しくは「${matchRegSpace[1]} ${matchRegSpace[2]}」です。(配布⑦ 項目1, 2)`
+            });
+        }
+
+        // ⑤ 大文字・小文字の表記ミス（既存の拡張）
+        const typoUnitRegex = /(\d+)\s*(Kg|秒|分|時間)/g;
+        let matchTypo;
+        while ((matchTypo = typoUnitRegex.exec(text)) !== null) {
+            const start = Math.max(0, matchTypo.index - 15);
+            const end = Math.min(text.length, matchTypo.index + matchTypo[0].length + 15);
+            const context = "..." + text.substring(start, end).replace(/\n/g, " ") + "...";
+            
+            let advice = "";
+            if (matchTypo[2] === 'Kg') advice = "キログラムは小文字の「kg」です。大文字のKは絶対温度（ケルビン）の記号になります。(配布⑦ 項目1)";
+            if (matchTypo[2] === '秒') advice = "時間は国際単位系（SI単位）のローマン体「s」で表記してください。(配布⑦ 項目1)";
+            if (matchTypo[2] === '分') advice = "時間は「min」で表記してください。";
+            if (matchTypo[2] === '時間') advice = "時間は「h」で表記してください。";
+
+            unitErrors.push({
+                type: '表記ミス',
+                found: matchTypo[0],
+                context: context,
+                advice: advice
             });
         }
 
